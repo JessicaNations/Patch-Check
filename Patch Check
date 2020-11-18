@@ -1,0 +1,92 @@
+<#
+    .SYNOPSIS
+        Test Windows patch status on a range of machines
+    .DESCRIPTION
+        Gets Active Directory Computer data from the DC and scans for expected HotfixIDs. 
+        The output is a csv/Excel file of the install status for patches on each queried computer. 
+        At this time, KBs require manual entry to perform the query.
+        I must hard-code the range of machines with their DestinguishedName OU certificate chains.
+        Or I could type out the list of servers by their individual names. 
+        OU chain is a better longterm solution for a changing environment.
+        SM server WSUS Approvals \\ESBLBC20\C$\Program Files\WSUS-Operations\Upload
+        Is there a list of servers requiring the patch? 
+    .LINK
+        https://stackoverflow.com/questions/22233470/pssession-and-get-hotfix
+        Find OU strings: https://adamtheautomator.com/get-adcomputer-powershell/
+    .INSTALL
+    	Copy\Paste Patch-Report.ps1 to the DC desktop
+    .RUN
+	    Right-click the pasted Patch-Report.ps1
+	    Run with PowerShell
+	    At the prompt, type the expected patches separated by commas
+	    This creates a CSV/Excel file on the DC server desktop
+        The CSV is viewable with Notepad on the DC server
+        If the script needs to be rerun, delete the CSV/Excel file
+	    Copy/Paste the CSV/Excel file to the local desktop to open with Microsoft Excel
+   .OU
+        $computers = Get-ADComputer -Filter * -SearchBase
+        .First OU=XX designation
+        .Second OU=XX_Location
+   .MEIS AE/OP
+        ‘OU=3.3.3.0,OU=AE,OU=BL_Location,OU=MEIS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL’
+   .GDSS
+        ‘OU=3.5.0,OU=WS,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
+   .OPs
+        'OU=3.3.3.0,OU=OP,OU=MC_Location,OU=MEIS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
+   .WM
+        'OU=3.5.0,OU=WM,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL' 
+   .MAP
+        'OU=3.5.0,OU=MA,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
+   .PT
+        'OU=3.5.0,OU=PT,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL' 
+   .RIDL
+        'OU=3.5.0,OU=RL,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
+
+#>
+
+
+$computers = Get-ADDomainController -Filter *
+# $computers = Get-ADComputer -LDAPFilter “(name=ESMCDC20)”
+# $Patches = 'KB4580346,KB4562561,KB4556813'
+$Patches=Read-Host "Please enter the patches separated by commas"
+$Patches=$Patches.Split(",")
+
+$output=
+foreach($computer in $computers | Sort {$_.name[2], $_.name[0], $_.name[4], [int]$_.name[6], [int]$_.name[7]})
+{
+  foreach($patch in $patches)
+    { 
+    $name = $computer.Name.ToString();
+    write-host "Working on computer: "$name
+    $Status = if(Invoke-Command -ScriptBlock {Get-HotFix} -ComputerName $name | Where-Object HotfixID -In "\b$Patches\b" -ErrorAction SilentlyContinue)
+    {
+      "Installed"
+    }
+    else{
+      "Not Installed"
+    }
+    [pscustomObject]@{
+      Server = $Computer.Name
+      Status = $Status      
+      Patch = $Patches
+    } 
+  } 
+}
+
+$Filename = "$Env:HOMEPATH\Desktop\PatchReport" 
+
+# When the script creates an Excel version of the CSV, 
+# errors are thrown because Excel is not installed on the DC server
+# These errors are allowable
+
+# Create some csv data
+$output | Export-csv "$Filename.csv" -notypeinformation -delimiter ',' -encoding utf8
+
+# Create excel version
+$Excel = New-Object -ComObject Excel.Application
+$Excel.Visible = $False
+
+# Save and finish creation and formatting
+$excel.Workbooks.Open("$FileName.csv").SaveAs("$FileName.xlsx",51)
+$excel.Quit() 
+#>
