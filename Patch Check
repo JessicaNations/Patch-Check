@@ -2,17 +2,16 @@
     .SYNOPSIS
         Test Windows patch status on a range of machines
     .DESCRIPTION
-        Gets Active Directory Computer data from the DC and scans for expected HotfixIDs. 
-        The output is a csv/Excel file of the install status for patches on each queried computer. 
-        At this time, KBs require manual entry to perform the query.
-        I must hard-code the range of machines with their DestinguishedName OU certificate chains.
-        Or I could type out the list of servers by their individual names. 
-        OU chain is a better longterm solution for a changing environment.
-        SM server WSUS Approvals \\ESBLBC20\C$\Program Files\WSUS-Operations\Upload
-        Is there a list of servers requiring the patch? 
+        Run this script on the DC to query Active Directory servers with expected patching HotfixIDs. 
+        The output is a csv/Excel file of the install status for expected Hotfix patches on each server. 
+        The machine range is hard-coded by DestinguishedName OU certificate chains.
+        OU chains categorize servers by server type, location, and the MEIS/GDSS grouping
     .LINK
         https://stackoverflow.com/questions/22233470/pssession-and-get-hotfix
         Find OU strings: https://adamtheautomator.com/get-adcomputer-powershell/
+    .PATCHES
+        SM server WSUS Approvals \\ESBLBC20\C$\Program Files\WSUS-Operations\Upload
+        CCB ticket lists the servers requiring the patch 
     .INSTALL
     	Copy\Paste Patch-Report.ps1 to the DC desktop
     .RUN
@@ -25,9 +24,9 @@
 	    Copy/Paste the CSV/Excel file to the local desktop to open with Microsoft Excel
    .OU
         $computers = Get-ADComputer -Filter * -SearchBase
-        .First OU=XX designation
+        .First OU=XX type designation
         .Second OU=XX_Location
-   .MEIS AE/OP
+   .MEIS
         ‘OU=3.3.3.0,OU=AE,OU=BL_Location,OU=MEIS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL’
    .GDSS
         ‘OU=3.5.0,OU=WS,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
@@ -42,37 +41,50 @@
    .RIDL
         'OU=3.5.0,OU=RL,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
 
+   .HOTFIXIDs ESBLBC20
+        Select-String -Path 'C:\Program Files\WSUS-Operations\Upload\10-19-2020-WSUS Approvals.txt' -Pattern 'kb ?\d+' -AllMatches | % { $_.Matches } | % { $_.Value }
 #>
 
+#$Patches = 'KB4580346,KB4562561,KB4556813,KB4580344'
+#$Patches = 'KB4580346'
+# $Patches=Read-Host "Please enter the patches separated by commas"
+#$Patches=$Patches.Split(",")
 
-$computers = Get-ADDomainController -Filter *
-# $computers = Get-ADComputer -LDAPFilter “(name=ESMCDC20)”
-# $Patches = 'KB4580346,KB4562561,KB4556813'
-$Patches=Read-Host "Please enter the patches separated by commas"
-$Patches=$Patches.Split(",")
+#$computers = Get-ADDomainController -Filter *
+
+$computers = Get-ADComputer -LDAPFilter “(name=ESBLBC20)”
+
+$Patches = Select-String -Path 'C:\Program Files\WSUS-Operations\Upload\10-19-2020-WSUS Approvals.txt' -Pattern 'kb ?\d+' -AllMatches | % { $_.Matches } | % { $_.Value }
 
 $output=
+# Iterates over all the computers and places them into an array
 foreach($computer in $computers | Sort {$_.name[2], $_.name[0], $_.name[4], [int]$_.name[6], [int]$_.name[7]})
 {
   foreach($patch in $patches)
     { 
     $name = $computer.Name.ToString();
     write-host "Working on computer: "$name
-    $Status = if(Invoke-Command -ScriptBlock {Get-HotFix} -ComputerName $name | Where-Object HotfixID -In "\b$Patches\b" -ErrorAction SilentlyContinue)
+    # Pipe the hotfix references to where-object, look for the KB ID, and return matches
+    $Status = if(Invoke-Command {Get-HotFix} -ComputerName $name | Where-Object HotfixID -In $Patches -ErrorAction SilentlyContinue)
     {
       "Installed"
     }
     else{
+      # Where-Object didn't find the HotfixIDs on the queried computer
       "Not Installed"
     }
+    # create a table
     [pscustomObject]@{
       Server = $Computer.Name
       Status = $Status      
-      Patch = $Patches
+      Patch = $Patch
     } 
   } 
 }
 
+$output | Out-GridView
+
+<#
 $Filename = "$Env:HOMEPATH\Desktop\PatchReport" 
 
 # When the script creates an Excel version of the CSV, 
