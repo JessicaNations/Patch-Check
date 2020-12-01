@@ -10,7 +10,7 @@
         https://stackoverflow.com/questions/22233470/pssession-and-get-hotfix
         Find OU strings: https://adamtheautomator.com/get-adcomputer-powershell/
     .PATCHES
-        SM server WSUS Approvals \\ESBLBC20\C$\Program Files\WSUS-Operations\Upload
+        SM server WSUS Approvals \\UNC file path
         CCB ticket lists the servers requiring the patch 
     .INSTALL
     	Copy\Paste Patch-Report.ps1 to the DC desktop
@@ -26,23 +26,9 @@
         $computers = Get-ADComputer -Filter * -SearchBase
         .First OU=XX type designation
         .Second OU=XX_Location
-   .MEIS
-        ‘OU=3.3.3.0,OU=AE,OU=BL_Location,OU=MEIS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL’
-   .GDSS
-        ‘OU=3.5.0,OU=WS,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
-   .OPs
-        'OU=3.3.3.0,OU=OP,OU=MC_Location,OU=MEIS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
-   .WM
-        'OU=3.5.0,OU=WM,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL' 
-   .MAP
-        'OU=3.5.0,OU=MA,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
-   .PT
-        'OU=3.5.0,OU=PT,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL' 
-   .RIDL
-        'OU=3.5.0,OU=RL,OU=MC_Location,OU=GDSS,OU=Enclave Programs,DC=C2,DC=DS,DC=C2OE,DC=MAF,DC=USTRANSCOM,DC=MIL'
 
-   .HOTFIXIDs ESBLBC20
-        Select-String -Path 'C:\Program Files\WSUS-Operations\Upload\10-19-2020-WSUS Approvals.txt' -Pattern 'kb ?\d+' -AllMatches | % { $_.Matches } | % { $_.Value }
+   .HOTFIXIDs Blade Controller 
+        Select-String -Path 'C:\~~WSUS Approvals.txt' -Pattern 'kb ?\d+' -AllMatches | % { $_.Matches } | % { $_.Value }
 #>
 
 #$Patches = 'KB4580346,KB4562561,KB4556813,KB4580344'
@@ -52,9 +38,9 @@
 
 #$computers = Get-ADDomainController -Filter *
 
-$computers = Get-ADComputer -LDAPFilter “(name=ESBLBC20)”
+$computers = Get-ADComputer -LDAPFilter “(name=BC)”
 
-$Patches = Select-String -Path 'C:\Program Files\WSUS-Operations\Upload\10-19-2020-WSUS Approvals.txt' -Pattern 'kb ?\d+' -AllMatches | % { $_.Matches } | % { $_.Value }
+$Patches = Select-String -Path 'C:\~~WSUS Approvals.txt' -Pattern 'kb ?\d+' -AllMatches | % { $_.Matches } | % { $_.Value }
 
 $output=
 # Iterates over all the computers and places them into an array
